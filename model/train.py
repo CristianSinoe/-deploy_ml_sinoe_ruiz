@@ -81,8 +81,10 @@ print(f"\nBest F1 threshold found: {best_threshold:.3f}")
 print("Evaluation on holdout (best F1 threshold):")
 print(classification_report(y_test, (y_proba >= best_threshold).astype(int), digits=4))
 
+
+FEATURES = X.columns.tolist()
 # 9) Guardar modelo + threshold
 model_path = pathlib.Path("model/stroke-model-v1.joblib")
 print(f"Saving model + threshold to {model_path} ...")
-dump({"pipe": pipe, "threshold": best_threshold}, model_path)
+dump({"pipe": pipe, "threshold": best_threshold, "features": FEATURES}, model_path)
 print("Done.")

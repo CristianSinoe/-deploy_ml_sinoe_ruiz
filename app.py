@@ -24,9 +24,11 @@ loaded = load(pathlib.Path("model/stroke-model-v1.joblib"))
 if isinstance(loaded, dict):
     model = loaded["pipe"]
     THRESHOLD = loaded.get("threshold", 0.5)
+    FEATURES = loaded.get("features")  # puede ser None si cargaste un modelo viejo
 else:
     model = loaded
-    THRESHOLD = 0.5  # compat
+    THRESHOLD = 0.5
+    FEATURES = None
 
 # Esquema de entrada alineado al dataset original
 class InputData(BaseModel):
@@ -62,6 +64,12 @@ def score(data: InputData):
         "Residence_type": data.Residence_type,
         "smoking_status": data.smoking_status,
     }])
+
+    # Alinear columnas con las de entrenamiento (evita el warning y futuros errores)
+    if FEATURES is not None:
+        # si faltara alguna columna, se crea con NaN; si sobra, se descarta
+        payload = payload.reindex(columns=FEATURES)
+
 
     # Predecir probabilidad de clase positiva
     proba = model.predict_proba(payload)[:, -1]
