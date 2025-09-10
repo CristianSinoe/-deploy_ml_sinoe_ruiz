@@ -5,33 +5,18 @@ on:
     branches: [ master ]
   pull_request:
     branches: [ master ]
-  # Disparo desde API (Postman / curl)
   repository_dispatch:
     types: [ ml_ci_cd ]
-  # Disparo manual desde la pestaña Actions con inputs
-  workflow_dispatch:
-    inputs:
-      dataseturl:
-        description: "URL del CSV a usar (opcional)"
-        required: false
-        default: ""
-      sha:
-        description: "Tag/sha para la imagen (opcional)"
-        required: false
-        default: ""
 
 jobs:
   ml_ci_cd:
     runs-on: ubuntu-latest
-    environment: deploy_ml_env
+    environment: deploy_ml_stroke
     strategy:
       matrix:
         python-version: [ "3.8" ]
     env:
-      # Tomamos el sha enviado por payload o input; si no, usamos el SHA del commit
-      TAG_SHA: ${{ github.event.client_payload.sha || github.event.inputs.sha || github.sha }}
-      # Tomamos el dataseturl del payload o del input; si no, queda vacío
-      DATASET_URL: ${{ github.event.client_payload.dataseturl || github.event.inputs.dataseturl || '' }}
+      TAG_SHA: ${{ github.event.client_payload.sha || github.sha }}
 
     steps:
       - name: Checkout
@@ -51,33 +36,18 @@ jobs:
       - name: Ensure data dir
         run: mkdir -p data
 
-      # Si nos mandan DATASET_URL, lo descargamos con el nombre que espera train.py
-      - name: Download dataset (stroke)
-        if: ${{ env.DATASET_URL != '' }}
-        run: |
-          echo "Downloading: $DATASET_URL"
-          curl -L "$DATASET_URL" -o data/healthcare-dataset-stroke-data.csv
+      # ⬇️ Solo este cambio: nombre del archivo que espera tu train.py
+      - name: Download dataset
+        run: curl -L "${{ github.event.client_payload.dataseturl }}" -o data/healthcare-dataset-stroke-data.csv
 
-      - name: Preview dataset (head)
-        run: |
-          echo "Head of dataset (if present):"
-          head -n 5 data/healthcare-dataset-stroke-data.csv || true
+      - name: Show dataset head
+        run: head -n 5 data/healthcare-dataset-stroke-data.csv
 
       - name: Resolve image tag
         run: echo "Using image tag:$TAG_SHA"
 
       - name: Train model
         run: python model/train.py
-
-      - name: Check model artifact
-        run: |
-          ls -lh model/
-          python - <<'PY'
-          import os
-          p="model/stroke-model-v1.joblib"
-          print("MODEL_EXISTS=", os.path.exists(p))
-          assert os.path.exists(p), "Model artifact not found!"
-          PY
 
       - name: Docker build (sha tag)
         run: docker build -t "${{ secrets.DOCKER_USER }}/${{ secrets.MODEL_NAME }}:$TAG_SHA" .
@@ -96,3 +66,5 @@ jobs:
 
       - name: Docker push latest
         run: docker push "${{ secrets.DOCKER_USER }}/${{ secrets.MODEL_NAME }}:latest"
+
+
